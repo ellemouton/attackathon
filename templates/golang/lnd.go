@@ -14,6 +14,24 @@ type LndNodes struct {
 	Lnd2 lndclient.LndServices
 }
 
+// GetNode returns the node at the index provided, panicing if an index is
+// requested for a node we don't have.
+func (l *LndNodes) GetNode(i int) lndclient.LndServices {
+	switch i {
+	case 0:
+		return l.Lnd0
+
+	case 1:
+		return l.Lnd1
+
+	case 2:
+		return l.Lnd2
+
+	default:
+		panic(fmt.Sprintf("Requested invalid LND node: %v", i))
+	}
+}
+
 func getLndNodes(ctx context.Context) (*LndNodes, error) {
 	lnd0, err := getLndClient(0)
 	if err != nil {
