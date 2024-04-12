@@ -2,6 +2,9 @@ package main
 
 import (
 	"crypto/rand"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
@@ -49,4 +52,29 @@ func outpointFromRPC(rpc *lnrpc.ChannelPoint) *wire.OutPoint {
 	}
 
 	return wire.NewOutPoint(hash, rpc.OutputIndex)
+}
+
+func outpointFromString(outpoint string) *wire.OutPoint {
+	parts := strings.Split(outpoint, ":")
+
+	// Check if there are two parts
+	if len(parts) != 2 {
+		panic(fmt.Sprintf("invalid outpoint: %v", outpoint))
+	}
+
+	txid, err := chainhash.NewHashFromStr(parts[0])
+	if err != nil {
+		panic(err)
+	}
+
+	// Parse outpoint index from string
+	outpointIndex, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		panic(err)
+	}
+
+	return &wire.OutPoint{
+		Hash:  *txid,
+		Index: uint32(outpointIndex),
+	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -15,6 +16,8 @@ import (
 // gossip etc).
 type GraphHarness struct {
 	LndNodes Nodes
+
+	wg sync.WaitGroup
 }
 
 type OpenChannelReq struct {
@@ -77,7 +80,7 @@ func (c *GraphHarness) OpenChannel(ctx context.Context,
 	for {
 		select {
 		case update := <-streamChan:
-                        // Wait for the channel to be pending before we mine.
+			// Wait for the channel to be pending before we mine.
 			if update.ChanPending != nil {
 				if err := Mine(6); err != nil {
 					return nil, fmt.Errorf("could not "+
@@ -157,4 +160,55 @@ func (c *GraphHarness) PeerConnected(ctx context.Context, source int,
 	}
 
 	return false, nil
+}
+
+// CloseAllChannels cooperatively closes all the channels we currently have
+// open and mines blocks to confirm them. Note that it *does not* wait for
+// the channels to reflect as closed in our internal state.
+func (c *GraphHarness) CloseAllChannels(ctx context.Context, node int) error {
+	sourceNode := c.LndNodes.GetNode(node)
+	channels, err := sourceNode.Client.ListChannels(ctx, false, false)
+	if err != nil {
+		return err
+	}
+
+	// Close all our channels, then do a once off mine and wait for them
+	// to confirm.
+	for _, channel := range channels {
+		closeChan, errChan, err := sourceNode.Client.CloseChannel(
+			ctx, outpointFromString(channel.ChannelPoint),
+			false, 0, nil,
+		)
+		if err != nil {
+			return err
+		}
+
+	waitForPending:
+		for {
+			// Just wait for our channel to get to a pending close
+			// and then we can proceed to closing the next one.
+			// We want to wait for this so that we know all
+			// channels will be mined when we mine below.
+			select {
+			case c := <-closeChan:
+				_, ok := c.(*lndclient.PendingCloseUpdate)
+				if ok {
+					break waitForPending
+				}
+
+			case e := <-errChan:
+				fmt.Printf("Error closing channel: "+
+					"%v\n", e)
+				return e
+
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+
+	}
+
+	Mine(6)
+
+	return nil
 }
