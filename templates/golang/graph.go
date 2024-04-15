@@ -104,6 +104,47 @@ func (c *GraphHarness) OpenChannel(ctx context.Context,
 	}
 }
 
+// WaitForChannel waits for the channel provided (created by the channelNode)
+// to be in the lookupNode's graph.
+func (c *GraphHarness) WaitForChannel(ctx context.Context, lookupNode,
+	channelNode int, channel *wire.OutPoint) error {
+
+	info, err := c.LndNodes.GetNode(channelNode).Client.GetInfo(ctx)
+	if err != nil {
+		return err
+	}
+
+	pubkey, err := route.NewVertexFromBytes(info.IdentityPubkey[:])
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < 5; i++ {
+		graphInfo, err := c.LookupNode(ctx, lookupNode, pubkey, true)
+		if err == nil {
+
+			for _, c := range graphInfo.Channels {
+				if c.ChannelPoint == channel.String() {
+					return nil
+				}
+			}
+		}
+
+		fmt.Printf("Lookup node %v with %v failed: %v\n",
+			pubkey, lookupNode, err)
+
+		select {
+		case <-time.After(time.Second * 30):
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return fmt.Errorf("Channel: %v not found in %v's graph", channel,
+		lookupNode)
+}
+
 func (c *GraphHarness) LookupNode(ctx context.Context, source int,
 	dest route.Vertex, includeChannels bool) (*lndclient.NodeInfo, error) {
 
@@ -211,4 +252,5 @@ func (c *GraphHarness) CloseAllChannels(ctx context.Context, node int) error {
 	Mine(6)
 
 	return nil
+
 }
