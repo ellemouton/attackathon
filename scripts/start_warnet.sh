@@ -59,7 +59,7 @@ if [ "$docker_desktop" = true ]; then
     echo "Starting warnet for Docker Desktop."
     just startd
 else
-    echo "Starting warnet for Docker."
+    echo "Starting warnet for Minikube."
     just start
 fi
 

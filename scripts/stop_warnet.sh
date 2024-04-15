@@ -19,6 +19,6 @@ if grep -q "Operating System:.*Desktop" <<< "$docker_info"; then
     echo "Stopping warnet for docker desktop."
     just stopd
 else
-    echo "Stopping warnet for docker."
+    echo "Stopping warnet for minikube."
     just stop
 fi
