@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Create a wallet so that we can use generate elsewhere, even though we're not using it here.
+bitcoin-cli createwallet test
+
 lncli0="lncli --network=regtest --tlscertpath=/credentials/lnd0-tls.cert --macaroonpath=/credentials/lnd0-admin.macaroon --rpcserver=lightning-0.warnet-armada "
 lncli1="lncli --network=regtest --tlscertpath=/credentials/lnd1-tls.cert --macaroonpath=/credentials/lnd1-admin.macaroon --rpcserver=lightning-1.warnet-armada "
 lncli2="lncli --network=regtest --tlscertpath=/credentials/lnd2-tls.cert --macaroonpath=/credentials/lnd2-admin.macaroon --rpcserver=lightning-2.warnet-armada "
