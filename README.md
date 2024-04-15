@@ -86,7 +86,7 @@ repository to be in the current directory.
   random payments in the network and mines blocks every 5 minutes.
   * If you want to kill your test network and start fresh, you can 
     use [./attackathon/scripts/stop_network.sh ln_10](./scripts/stop_network.sh)
-* Start attacking pods: [./attackathon/scripts/start_attacker.sh](./scripts/start_attacker.sh)
+* Start attacking pods: [./attackathon/scripts/start_attacker.sh ln_10](./scripts/start_attacker.sh)
   brings up three lightning nodes that you will use for your attack, 
   a bitcoin node and an empty `flagship` container to run your attack 
   from.

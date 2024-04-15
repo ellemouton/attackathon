@@ -5,6 +5,16 @@ if [ ! -d "attackathon" ]; then
     exit 1
 fi
 
+# We've manually set the target node in our graphs.
+if [ "$1" = "ln_10" ]; then
+    target_alias=7
+elif [ "$1" = "ln_100" ]; then
+    target_alias=44
+else
+    echo "Error: Invalid argument. Please provide either 'ln_10' or 'ln_100'."
+    exit 1
+fi
+
 echo "Adding attacking nodes to cluster"
 kubectl apply -f attackathon/setup/armada.yaml
 
@@ -26,7 +36,7 @@ echo "Copying in attacking node credentials"
 ./attackathon/scripts/credentials.sh
 
 # TODO: we'll need to set this differently for ln_10 vs ln_100
-target_info=$(warcli lncli 0 getinfo)
+target_info=$(warcli lncli $target_alias getinfo)
 target_pubkey=$(echo "$target_info" | jq -r '.identity_pubkey')
 
 echo "Setting target node pubkey: $target_pubkey in target.txt"
