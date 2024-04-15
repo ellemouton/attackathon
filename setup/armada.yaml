@@ -110,6 +110,7 @@ spec:
     - --alias=0
     - --externalhosts=lightning-0.warnet-armada
     - --tlsextradomain=lightning-0.warnet-armada
+    - --trickledelay=1
     - ""
     env:
     - name: LN_IMPL
@@ -179,6 +180,7 @@ spec:
     - --alias=1
     - --externalhosts=lightning-1.warnet-armada
     - --tlsextradomain=lightning-1.warnet-armada
+    - --trickledelay=1
     - ""
     env:
     - name: LN_IMPL
@@ -248,6 +250,7 @@ spec:
     - --alias=2
     - --externalhosts=lightning-2.warnet-armada
     - --tlsextradomain=lightning-2.warnet-armada
+    - --trickledelay=1
     - ""
     env:
     - name: LN_IMPL
