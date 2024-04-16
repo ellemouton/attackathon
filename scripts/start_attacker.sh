@@ -5,15 +5,18 @@ if [ ! -d "attackathon" ]; then
     exit 1
 fi
 
-# We've manually set the target node in our graphs.
-if [ "$1" = "ln_10" ]; then
-    target_alias=7
-elif [ "$1" = "ln_100" ]; then
-    target_alias=44
-else
-    echo "Error: Invalid argument. Please provide either 'ln_10' or 'ln_100'."
+# Check if the correct number of arguments are provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <network_name>"
     exit 1
 fi
+
+# Get our target alias from the data file where it's stored.
+network_name="$1"
+
+current_directory=$(pwd)
+sim_files="$current_directory/attackathon/data/$network_name"
+target_alias=$(cat $sim_files/target.txt)
 
 echo "Adding attacking nodes to cluster"
 kubectl apply -f attackathon/setup/armada.yaml
@@ -35,7 +38,6 @@ done
 echo "Copying in attacking node credentials"
 ./attackathon/scripts/credentials.sh
 
-# TODO: we'll need to set this differently for ln_10 vs ln_100
 target_info=$(warcli lncli $target_alias getinfo)
 target_pubkey=$(echo "$target_info" | jq -r '.identity_pubkey')
 
