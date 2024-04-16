@@ -191,6 +191,9 @@ You will need to provide:
 2. The duration of time, expressed in seconds, that you'd like the 
   setup script to generate fake historical forwards for all the nodes 
   in the network for.
+3. Manually add the alias of the node that you're attacking to 
+  `attackathon/data/{network name}/target.txt` once this script has 
+  run.
 
 The setup script provided will generate all required files and docker 
 images for you:
