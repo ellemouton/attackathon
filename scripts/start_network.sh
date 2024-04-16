@@ -41,4 +41,5 @@ warcli scenarios run miner_std --allnodes --interval=300
 
 # Sim-ln should already be running if we added it in the graph file, export creds here.
 echo "Generating random payment activity"
-warcli network export
+target_alias=$(cat $sim_files/target.txt)
+warcli network export --exclude="[$target_alias]"
