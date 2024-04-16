@@ -18,6 +18,9 @@ network_name="$1"
 current_directory=$(pwd)
 sim_files="$current_directory/attackathon/data/$network_name"
 
+cd warnet
+pip install -e .
+
 echo "💣 Bringing up warnet 💣"
 warcli network start "$sim_files/$network_name.graphml" --force
 
