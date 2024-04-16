@@ -13,18 +13,6 @@ RUN apt-get install -y golang
 # Install Rust
 RUN apt-get install -y rustc
 
-# Download Bitcoin Core
-RUN wget https://bitcoincore.org/bin/bitcoin-core-26.1/bitcoin-26.1-aarch64-linux-gnu.tar.gz
-
-# Extract Bitcoin Core
-RUN tar -xvf bitcoin-26.1-aarch64-linux-gnu.tar.gz
-
-# Move bitcoin-cli binary to /bin
-RUN mv bitcoin-26.1/bin/bitcoin-cli /bin
-
-# Clean up
-RUN rm -rf bitcoin-26.1-aarch64-linux-gnu.tar.gz bitcoin-26.1
-
 # Create bitcoin conf so that bitcoin-cli just works.
 RUN mkdir -p ~/.bitcoin && \
     echo "rpcconnect=bitcoind.warnet-armada" >> ~/.bitcoin/bitcoin.conf && \
@@ -32,11 +20,10 @@ RUN mkdir -p ~/.bitcoin && \
     echo "rpcpassword=2themoon" >> ~/.bitcoin/bitcoin.conf && \
     echo "regtest=1" >> ~/.bitcoin/bitcoin.conf
 
-# Download lncli binary from Lightning Labs GitHub
-RUN wget https://github.com/lightningnetwork/lnd/releases/download/v0.17.4-beta/lnd-linux-arm64-v0.17.4-beta.tar.gz && \
-    tar -xvf lnd-linux-arm64-v0.17.4-beta.tar.gz && \
-    mv lnd-linux-arm64-v0.17.4-beta/lncli /bin && \
-    rm -rf lnd-linux-arm64-v0.17.4-beta.tar.gz lnd-linux-arm64-v0.17.4-beta
+# Install bitcoind/lnd clis.
+COPY install_cli.sh /install_cli.sh
+RUN chmod +x install_cli.sh
+RUN ./install_cli.sh
 
 # Copy in run script that is a placeholder for attacker code.
 COPY run.sh /run.sh
