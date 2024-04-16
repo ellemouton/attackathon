@@ -7,11 +7,6 @@ fi
 
 cd warnet
 
-echo "Removing carla remote"
-echo "TODO: remove me when attackathon/18 has been addressed!"
-git remote remove carla
-git checkout main
-
 docker_info=$(docker info)
 
 # Setup depends on docker or docker desktop.
