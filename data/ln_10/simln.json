@@ -10,7 +10,7 @@
         "max_in_flight_msat": 400000000,
         "min_htlc_size_msat": 1,
         "max_htlc_size_msat": 396000000,
-        "cltv_expiry_delta": 10,
+        "cltv_expiry_delta": 18,
         "base_fee": 500,
         "fee_rate_prop": 1
       },
@@ -62,7 +62,7 @@
         "max_in_flight_msat": 4000000000,
         "min_htlc_size_msat": 1,
         "max_htlc_size_msat": 3960000000,
-        "cltv_expiry_delta": 10,
+        "cltv_expiry_delta": 18,
         "base_fee": 500,
         "fee_rate_prop": 1
       },
