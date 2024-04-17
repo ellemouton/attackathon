@@ -16,7 +16,7 @@ fi
 
 if [ ! -d "sim-ln" ]; then
     echo "Error: Sim-LN directory not found. Make sure to clone Sim-LN before running this script."
-	exit 1
+    exit 1
 fi
 
 if [ ! -d "circuitbreaker" ]; then
@@ -53,6 +53,7 @@ echo "Creating simulation files in: "$sim_files""
 mkdir -p $sim_files
 
 docker_tag="carlakirkcohen/circuitbreaker:attackathon-$network_name"
+raw_data="$sim_files/data.csv"
 
 if [ -z "$2" ]; then
     echo "Duration argument not provided: not generating historical data for network"
@@ -82,34 +83,37 @@ else
     runtime=$((duration / 1000))
     echo "Generating historical data for $duration seconds, will take: $runtime seconds with speedup of 1000"
     sim-cli --clock-speedup 1000 -s "$simfile" -t "$duration"
-
-    raw_data="$sim_files/data.csv"
+	
     cp results/htlc_forwards.csv "$raw_data"
     cd ..
-
-    echo "Building circuitbreaker image with new data"
-    cd circuitbreaker
-
-    if [[ -n $(git status --porcelain) ]]; then
-        echo "Error: there are unsaved changes in circuitbreaker, please stash them!"
-        exit 1
-    fi
-
-    git remote add carla https://github.com/carlaKC/circuitbreaker
-
-    git fetch carla > /dev/null 2>&1 || { echo "Failed to fetch carla/circuitbreaker"; exit 1; }
-    git checkout carla/attackathon > /dev/null 2>&1 || { echo "Failed to checkout carla/circuitbreaker/attackathon"; exit 1; }
-
-    cp "$raw_data" historical_data/raw_data_csv
-
-    # Build with no cache because docker is sometimes funny with not detecting changes in the files being copied in.
-    docker build --platform linux/amd64,linux/arm64 -t "$docker_tag" --no-cache --push .
-
-    git remote remove carla
-    git checkout master > /dev/null 2>&1
-
-    cd ..
 fi
+
+echo "Building circuitbreaker image with new data"
+cd circuitbreaker
+
+if [[ -n $(git status --porcelain) ]]; then
+    echo "Error: there are unsaved changes in circuitbreaker, please stash them!"
+    exit 1
+fi
+
+if ! git remote | grep -q carla; then
+    git remote add carla https://github.com/carlaKC/circuitbreaker
+fi
+
+git fetch carla > /dev/null 2>&1 || { echo "Failed to fetch carla/circuitbreaker"; exit 1; }
+git checkout carla/attackathon > /dev/null 2>&1 || { echo "Failed to checkout carla/circuitbreaker/attackathon"; exit 1; }
+
+cp "$raw_data" historical_data/raw_data_csv
+
+# Build with no cache because docker is sometimes funny with not detecting changes in the files being copied in.
+docker buildx build --platform linux/amd64,linux/arm64 -t "$docker_tag" --no-cache --push .
+
+# Clean up everything we left in circuitbreaker.
+git remote remove carla
+git checkout master > /dev/null 2>&1
+rm historical_data/raw_data_csv
+
+cd ..
 
 # Before we actually bump our timestamps, we'll spin up warnet to generate a graphml file that
 # will use our generated data.
