@@ -10,6 +10,7 @@ import (
 	"github.com/lightningnetwork/lnd/invoices"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
+	"github.com/lightningnetwork/lnd/lnrpc/routerrpc"
 	"github.com/lightningnetwork/lnd/lnwire"
 )
 
@@ -97,13 +98,19 @@ func (j *JammingHarness) JammingPayment(ctx context.Context,
 		return nil, err
 	}
 
+	endorse := routerrpc.HTLCEndorsement_ENDORSEMENT_FALSE
+	if req.EndorseOutgoing {
+		endorse = routerrpc.HTLCEndorsement_ENDORSEMENT_TRUE
+	}
+
 	sendTime := time.Now()
 	statusChan, pmtErrChan, err := j.LndNodes.GetNode(req.SourceIdx).Router.SendPayment(
 		ctx,
 		lndclient.SendPaymentRequest{
-			Invoice:    inv,
-			Timeout:    time.Hour,
-			MaxFeeMsat: lnwire.MaxMilliSatoshi,
+			Invoice:         inv,
+			Timeout:         time.Hour,
+			MaxFeeMsat:      lnwire.MaxMilliSatoshi,
+			EndorseOutgoing: endorse,
 		},
 	)
 	if err != nil {
