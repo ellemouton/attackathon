@@ -2,7 +2,7 @@
 FROM ubuntu:24.04
 
 # Install required utilities
-RUN apt-get update && apt-get install -y wget vim curl jq
+RUN apt-get update && apt-get install -y wget vim curl jq git make
 
 # Download and install neovim
 RUN apt-get install -y neovim
