@@ -1,7 +1,7 @@
 {
     "nodes": [
         {
-            "id": "0341a7227fab90a8ec55fdccc5c3d2dbb407b0924f7ccbad2b594f5891ac4a1c9f",
+            "pub_key": "0341a7227fab90a8ec55fdccc5c3d2dbb407b0924f7ccbad2b594f5891ac4a1c9f",
             "last_update": 1710855215,
             "alias": "theblocklounge",
             "addresses": [
@@ -81,7 +81,7 @@
             "custom_records": {}
         },
         {
-            "id": "02c2fab8d99106ce621cae6d35aaddcc5a13f6ae9c65f2c9cf2adc6570dc08482d",
+            "pub_key": "02c2fab8d99106ce621cae6d35aaddcc5a13f6ae9c65f2c9cf2adc6570dc08482d",
             "last_update": 1710599771,
             "alias": "Kendig Island",
             "addresses": [
@@ -166,7 +166,7 @@
             "custom_records": {}
         },
         {
-            "id": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
+            "pub_key": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
             "last_update": 1710852567,
             "alias": "BitcoinJungleCR",
             "addresses": [
@@ -241,7 +241,7 @@
             "custom_records": {}
         },
         {
-            "id": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+            "pub_key": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
             "last_update": 1709977298,
             "alias": "ACINQ",
             "addresses": [
@@ -330,11 +330,11 @@
             "custom_records": {}
         }
     ],
-    "links": [
+    "edges": [
         
         {
-            "source": "0341a7227fab90a8ec55fdccc5c3d2dbb407b0924f7ccbad2b594f5891ac4a1c9f",
-            "target": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
+            "node1_pub": "0341a7227fab90a8ec55fdccc5c3d2dbb407b0924f7ccbad2b594f5891ac4a1c9f",
+            "node2_pub": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
             "channel_id": "911465452702334977",
             "chan_point": "58b96124e589d3a50df2def54625ffd0d748befb73f212b62565e57802b44e35:1",
             "last_update": 1710837477,
@@ -362,8 +362,8 @@
             "custom_records": {}
         },
                 {
-            "source": "02c2fab8d99106ce621cae6d35aaddcc5a13f6ae9c65f2c9cf2adc6570dc08482d",
-            "target": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+            "node1_pub": "02c2fab8d99106ce621cae6d35aaddcc5a13f6ae9c65f2c9cf2adc6570dc08482d",
+            "node2_pub": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
             "channel_id": "759854893796884480",
             "chan_point": "15417ac7c7a4b30eb2989c5f563345c350666ae89a5972258b4366565b06e4b8:0",
             "last_update": 1709865042,
@@ -391,8 +391,8 @@
             "custom_records": {}
         },
         {
-            "source": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
-            "target": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
+            "node1_pub": "03797da684da0b6de8a813f9d7ebb0412c5d7504619b3fa5255861b991a7f86960",
+            "node2_pub": "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
             "channel_id": "912080079760850944",
             "chan_point": "c7bf1b6b37e05974eeba2bbebab58ddbbc7032aaa82a823b3a6e479342df78c9:0",
             "last_update": 1710845262,
