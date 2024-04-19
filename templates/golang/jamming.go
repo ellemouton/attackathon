@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -49,6 +50,10 @@ type JammingPaymentReq struct {
 
 	// Instruct the receiving node to wait for this duration before settle.
 	SettleWait time.Duration
+
+	// ForceSettle is a channel that when closed, will force the jam payment
+	// to be settled/canceled.
+	ForceSettle chan struct{}
 }
 
 type JammingPaymentResp struct {
@@ -165,9 +170,7 @@ func (j *JammingHarness) JammingPayment(ctx context.Context,
 
 				invoiceChannel <- i.Htlcs
 
-				select {
-				case <-time.After(wait):
-
+				complete := func() {
 					var err error
 					if req.Settle {
 						err = dest.Invoices.SettleInvoice(
@@ -182,6 +185,16 @@ func (j *JammingHarness) JammingPayment(ctx context.Context,
 						errChan <- err
 						return
 					}
+				}
+
+				select {
+				case <-req.ForceSettle:
+					fmt.Println("forcing settle")
+
+					complete()
+
+				case <-time.After(wait):
+					complete()
 
 				case <-ctx.Done():
 					errChan <- ctx.Err()
