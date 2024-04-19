@@ -26,7 +26,7 @@ mv "$bitcoin_dir/bin/bitcoin-cli" /bin
 git clone https://github.com/carlaKC/lnd 
 cd lnd
 git checkout attackathon
-make install
+make release-install
 mv /root/go/bin/lncli /bin
 cd .. 
 
