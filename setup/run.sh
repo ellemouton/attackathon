@@ -22,6 +22,10 @@ export LND_2_MACAROON="/credentials/lnd2-admin.macaroon"
 
 export TARGET=$(cat target.txt)
 
+# Connect to nodes & fund attackers.
+./connect.sh
+./fund.sh
+
 # Fill in code here to:
 # - Clone your repo
 # - Install your program

