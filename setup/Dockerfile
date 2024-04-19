@@ -10,8 +10,9 @@ RUN apt-get install -y neovim
 # Install Golang
 RUN apt-get install -y golang
 
-# Install Rust
-RUN apt-get install -y rustc
+# Install rust + set cargo path
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Create bitcoin conf so that bitcoin-cli just works.
 RUN mkdir -p ~/.bitcoin && \
